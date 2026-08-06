@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Motor de Ejecutabilidad — Reporte de verificación</title>
+<style>
+  :root {
+    --bg: #0B1220; --surface: #141B2E; --surface-2: #1B2440; --border: #263156;
+    --text: #EDEFF3; --text-dim: #8B93A7; --accent: #4FD1C5;
+    --ok: #34D399; --ok-bg: rgba(52,211,153,0.12);
+    --warn: #FBBF24; --warn-bg: rgba(251,191,36,0.12);
+    --bad: #F87171; --bad-bg: rgba(248,113,113,0.12);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background: radial-gradient(1200px 600px at 50% -10%, #101a33 0%, var(--bg) 55%); color: var(--text); font-family: var(--sans); padding: 32px 20px 64px; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  .top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:28px; flex-wrap:wrap; gap:8px; }
+  .top h1 { font-size:15px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-dim); font-weight:600; margin:0; }
+  .top .meta { font-family: var(--mono); font-size:12px; color: var(--text-dim); }
+  .board { background: linear-gradient(180deg, var(--surface-2), var(--surface)); border:1px solid var(--border); border-radius:14px; padding:28px 32px; margin-bottom:36px; position:relative; overflow:hidden; }
+  .board::before { content:""; position:absolute; inset:0; background: linear-gradient(120deg, rgba(79,209,197,0.08), transparent 55%); pointer-events:none; }
+  .board .eyebrow { font-family: var(--mono); font-size:12px; letter-spacing:.12em; color: var(--accent); text-transform:uppercase; margin-bottom:10px; }
+  .board .winner-row { display:flex; align-items:center; gap:22px; flex-wrap:wrap; }
+  .board .winner-id { font-family: var(--mono); font-size:40px; font-weight:700; letter-spacing:-.01em; color:var(--text); margin-right:4px; }
+  .board .winner-name { font-size:16px; color: var(--text-dim); }
+  .status-pill { display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; font-family: var(--mono); font-size:12px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
+  .status-pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .status-pill.warn { background: var(--warn-bg); color: var(--warn); }
+  .status-pill.bad { background: var(--bad-bg); color: var(--bad); }
+  .status-pill::before { content:""; width:6px; height:6px; border-radius:50%; background: currentColor; }
+  .pill-inline { display:inline-block; padding:1px 8px; border-radius:999px; font-family: var(--mono); font-size:11px; font-weight:700; text-transform:uppercase; }
+  .pill-inline.ok { background: var(--ok-bg); color: var(--ok); }
+  .pill-inline.warn { background: var(--warn-bg); color: var(--warn); }
+  .pill-inline.bad { background: var(--bad-bg); color: var(--bad); }
+  .board .sub { margin-top:14px; font-size:13px; color: var(--text-dim); line-height:1.5; }
+  h2.section-title { font-size:13px; letter-spacing:.08em; text-transform:uppercase; color: var(--text-dim); font-weight:600; margin:0 0 14px; }
+  .verify-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:36px; }
+  @media (max-width:720px) { .verify-grid { grid-template-columns:1fr; } }
+  .verify-card { background: var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; }
+  .verify-card .head { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .verify-card .pid { font-family: var(--mono); font-size:18px; font-weight:700; }
+  .verify-card .name { font-size:12px; color: var(--text-dim); margin-top:2px; }
+  .layer { padding:12px 0; border-top:1px solid var(--border); }
+  .layer:first-of-type { border-top:none; padding-top:0; }
+  .layer .who { font-family: var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color: var(--accent); margin-bottom:6px; }
+  .layer .who.motor { color: var(--text-dim); }
+  .layer p { margin:0; font-size:13.5px; line-height:1.55; color: var(--text); }
+  .layer .tarea { margin-top:8px; font-size:12.5px; color: var(--warn); }
+
+  /* Barra resumen */
+  .summary-bar { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .summary-chip { font-family: var(--mono); font-size:12px; padding:6px 12px; border-radius:8px; border:1px solid var(--border); background: var(--surface); color: var(--text-dim); }
+  .summary-chip b { color: var(--text); }
+  .summary-chip.ok { border-color: rgba(52,211,153,0.35); } .summary-chip.warn { border-color: rgba(251,191,36,0.35); } .summary-chip.bad { border-color: rgba(248,113,113,0.35); }
+
+  /* Lista con filas expandibles nativas */
+  .list { display:flex; flex-direction:column; border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .row-details { border-bottom:1px solid var(--border); background: var(--surface); }
+  .row-details:last-child { border-bottom:none; }
+  .row-details summary { cursor:pointer; list-style:none; }
+  .row-details summary::-webkit-details-marker { display:none; }
+  .row { display:flex; align-items:center; gap:12px; padding:12px 18px; font-size:13px; }
+  .row.header { background: var(--surface-2); font-family: var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color: var(--text-dim); cursor:default; }
+  .row::before { content:"›"; display:inline-block; width:10px; color: var(--text-dim); transition: transform .15s ease; }
+  .row-details[open] .row::before { transform: rotate(90deg); }
+  .row.header::before { content:""; }
+  .row > * { flex: 0 0 auto; }
+  .row .col-id { width:80px; } .row .col-name { width:220px; flex:1 1 auto; min-width:140px; display:flex; align-items:center; gap:8px; }
+  .row .col-prio { width:110px; } .row .col-dias { width:70px; } .row .col-estado { width:190px; }
+  .row .pid { font-family: var(--mono); font-weight:700; }
+  .row .prio { color: var(--text-dim); font-family: var(--mono); font-size:12px; }
+  .tag-equidad { font-family: var(--mono); font-size:10px; color: var(--accent); background: rgba(79,209,197,0.1); padding:2px 7px; border-radius:6px; white-space:nowrap; }
+
+  .row-expand { padding:4px 18px 18px 40px; background: var(--surface-2); font-size:13px; }
+  .detail-line { margin-bottom:8px; line-height:1.5; }
+  .detail-line .label { display:block; font-family: var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color: var(--text-dim); margin-bottom:3px; }
+  .preview-box { margin-top:10px; padding:12px 14px; border-radius:8px; background: rgba(79,209,197,0.06); border:1px dashed rgba(79,209,197,0.35); }
+  .preview-box.ok-box { background: var(--ok-bg); border:1px solid rgba(52,211,153,0.3); }
+  .preview-tag { font-family: var(--mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase; color: var(--accent); margin-bottom:6px; }
+  .preview-box p { margin:0; font-size:13px; line-height:1.5; color: var(--text); }
+
+  /* Panel de capas de seguridad */
+  .security-panel { margin-top:36px; border:1px solid var(--border); border-radius:12px; padding:22px 26px; background: var(--surface); }
+  .security-panel h2 { margin:0 0 14px; }
+  .security-item { display:flex; gap:12px; padding:10px 0; border-top:1px solid var(--border); }
+  .security-item:first-of-type { border-top:none; padding-top:0; }
+  .security-item .icon { font-family: var(--mono); color: var(--accent); font-size:13px; flex:0 0 auto; }
+  .security-item .txt b { color: var(--text); }
+  .security-item .txt { font-size:13px; color: var(--text-dim); line-height:1.5; }
+
+  footer { margin-top:40px; text-align:center; font-size:11.5px; color: var(--text-dim); font-family: var(--mono); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>Motor de Ejecutabilidad · Línea 02 — Descompresión</h1>
+    <div class="meta">generado 06-08-2026, 2:04:57 a. m.</div>
+  </div>
+
+  <div class="board">
+    <div class="eyebrow">Cupo quirúrgico liberado</div>
+    <div class="winner-row">
+      <div class="winner-id">P-014</div>
+      <div class="winner-name">Elena R. · Prioridad Media · 210 días en espera</div>
+      <span class="status-pill ok">Ejecutable</span>
+    </div>
+    <div class="sub">Todos los requisitos críticos confirmados, tiempo suficiente. Validación humana pendiente.</div>
+  </div>
+
+  <h2 class="section-title">Verificación en vivo — Claude interpreta, el motor de reglas decide</h2>
+  <div class="verify-grid">
+    
+    <div class="verify-card">
+      <div class="head">
+        <div><div class="pid">P-014</div><div class="name">Elena R.</div></div>
+        <span class="status-pill ok">Ejecutable</span>
+      </div>
+      <div class="layer">
+        <div class="who">Claude, vía tools</div>
+        <p>El paciente P-014 tiene su examen preoperatorio vigente desde junio, la prótesis necesaria es compatible y hay margen de tiempo suficiente. No se requiere relevo de equipo médico para este caso.</p>
+      </div>
+      <div class="layer">
+        <div class="who motor">Motor de reglas</div>
+        <p>Todos los requisitos críticos confirmados, tiempo suficiente.</p>
+        
+      </div>
+    </div>
+    
+    <div class="verify-card">
+      <div class="head">
+        <div><div class="pid">P-033</div><div class="name">Manuel S.</div></div>
+        <span class="status-pill bad">Bloqueada</span>
+      </div>
+      <div class="layer">
+        <div class="who">Claude, vía tools</div>
+        <p>El paciente P-033 presenta un examen preoperatorio no vigente desde enero, pero cuenta con la prótesis compatible reservada y tiempo suficiente disponible, además no requiere relevo de equipo médico. La decisión final sobre la ejecutabilidad corresponde al motor de reglas y al equipo médico tratante.</p>
+      </div>
+      <div class="layer">
+        <div class="who motor">Motor de reglas</div>
+        <p>Examen preoperatorio vencido (umbral: 180 días).</p>
+        <div class="tarea">→ Tarea: Renovar examen, plazo 48h.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="section-title">Shortlist completa (8 pacientes sintéticos) · clic en una fila para ver el detalle</h2>
+  <div class="summary-bar">
+    <span class="summary-chip ok"><b>1</b> Ejecutable</span>
+    <span class="summary-chip warn"><b>3</b> Requiere revisión</span>
+    <span class="summary-chip bad"><b>4</b> Bloqueada</span>
+  </div>
+  <div class="list">
+    <div class="row-details"><div class="row header">
+      <div class="col-id">ID</div><div class="col-name">Nombre</div><div class="col-prio">Prioridad</div><div class="col-dias">Días</div><div class="col-estado">Estado</div>
+    </div></div>
+    
+    <details class="row-details">
+      <summary>
+        <div class="row">
+          <div class="col-id pid">P-033</div>
+          <div class="col-name">Manuel S. </div>
+          <div class="col-prio prio">Alta</div>
+          <div class="col-dias prio">400</div>
+          <div class="col-estado"><span class="status-pill bad">Bloqueada</span></div>
+        </div>
+      </summary>
+      <div class="row-expand">
+        <div class="detail-line"><span class="label">Motivo</span>Examen preoperatorio vencido (umbral: 180 días).</div>
+        <div class="detail-line"><span class="label">Tarea pendiente</span>Renovar examen, plazo 48h.</div>
+        <div class="preview-box">
+         <div class="preview-tag">💡 vista previa (simulada por el motor de reglas)</div>
+         <p>Si se renueva el examen preoperatorio → pasaría a <span class="pill-inline ok">Ejecutable</span>. Todos los requisitos críticos confirmados, tiempo suficiente.</p>
+       </div>
+      </div>
+    </details>
+    <details class="row-details">
+      <summary>
+        <div class="row">
+          <div class="col-id pid">P-041</div>
+          <div class="col-name">Carmen T. </div>
+          <div class="col-prio prio">Alta</div>
+          <div class="col-dias prio">380</div>
+          <div class="col-estado"><span class="status-pill bad">Bloqueada</span></div>
+        </div>
+      </summary>
+      <div class="row-expand">
+        <div class="detail-line"><span class="label">Motivo</span>Paciente no contactable.</div>
+        <div class="detail-line"><span class="label">Tarea pendiente</span>Contactar por canal alternativo, plazo 24h.</div>
+        <div class="preview-box">
+         <div class="preview-tag">💡 vista previa (simulada por el motor de reglas)</div>
+         <p>Si se contacta al paciente → pasaría a <span class="pill-inline ok">Ejecutable</span>. Todos los requisitos críticos confirmados, tiempo suficiente.</p>
+       </div>
+      </div>
+    </details>
+    <details class="row-details">
+      <summary>
+        <div class="row">
+          <div class="col-id pid">P-027</div>
+          <div class="col-name">Ricardo M. </div>
+          <div class="col-prio prio">Alta</div>
+          <div class="col-dias prio">340</div>
+          <div class="col-estado"><span class="status-pill warn">Requiere revisión</span></div>
+        </div>
+      </summary>
+      <div class="row-expand">
+        <div class="detail-line"><span class="label">Motivo</span>Cambio clínico reciente reportado. Requiere criterio profesional.</div>
+        
+        <div class="preview-box">
+         <div class="preview-tag">💡 vista previa (simulada por el motor de reglas)</div>
+         <p>Si un profesional confirma que el cambio clínico no impide la cirugía → pasaría a <span class="pill-inline ok">Ejecutable</span>. Todos los requisitos críticos confirmados, tiempo suficiente.</p>
+       </div>
+      </div>
+    </details>
+    <details class="row-details">
+      <summary>
+        <div class="row">
+          <div class="col-id pid">P-063</div>
+          <div class="col-name">Rosa V. <span class="tag-equidad">⚖ regla de equidad</span></div>
+          <div class="col-prio prio">Alta</div>
+          <div class="col-dias prio">300</div>
+          <div class="col-estado"><span class="status-pill warn">Requiere revisión</span></div>
+        </div>
+      </summary>
+      <div class="row-expand">
+        <div class="detail-line"><span class="label">Motivo</span>Transporte no confirmado. No se excluye automáticamente (regla de equidad).</div>
+        <div class="detail-line"><span class="label">Tarea pendiente</span>Apoyo logístico de transporte.</div>
+        <div class="preview-box">
+         <div class="preview-tag">💡 vista previa (simulada por el motor de reglas)</div>
+         <p>Si se confirma el transporte del paciente → pasaría a <span class="pill-inline ok">Ejecutable</span>. Todos los requisitos críticos confirmados, tiempo suficiente.</p>
+       </div>
+      </div>
+    </details>
+    <details class="row-details">
+      <summary>
+        <div class="row">
+          <div class="col-id pid">P-014</div>
+          <div class="col-name">Elena R. </div>
+          <div class="col-prio prio">Media</div>
+          <div class="col-dias prio">210</div>
+          <div class="col-estado"><span class="status-pill ok">Ejecutable</span></div>
+        </div>
+      </summary>
+      <div class="row-expand">
+        <div class="detail-line"><span class="label">Motivo</span>Todos los requisitos críticos confirmados, tiempo suficiente.</div>
+        
+        <div class="preview-box ok-box"><p>Ya cumple todos los requisitos críticos.</p></div>
+      </div>
+    </details>
+    <details class="row-details">
+      <summary>
+        <div class="row">
+          <div class="col-id pid">P-052</div>
+          <div class="col-name">Jorge P. </div>
+          <div class="col-prio prio">Media</div>
+          <div class="col-dias prio">190</div>
+          <div class="col-estado"><span class="status-pill bad">Bloqueada</span></div>
+        </div>
+      </summary>
+      <div class="row-expand">
+        <div class="detail-line"><span class="label">Motivo</span>Se requiere relevo de equipo médico y no está confirmado.</div>
+        <div class="detail-line"><span class="label">Tarea pendiente</span>Confirmar relevo de equipo médico.</div>
+        <div class="preview-box">
+         <div class="preview-tag">💡 vista previa (simulada por el motor de reglas)</div>
+         <p>Si se confirma el relevo de equipo médico → pasaría a <span class="pill-inline warn">Requiere revisión</span>. Margen de tiempo (8 min) bajo el umbral seguro (15 min).</p>
+       </div>
+      </div>
+    </details>
+    <details class="row-details">
+      <summary>
+        <div class="row">
+          <div class="col-id pid">P-074</div>
+          <div class="col-name">Sergio A. </div>
+          <div class="col-prio prio">Media</div>
+          <div class="col-dias prio">150</div>
+          <div class="col-estado"><span class="status-pill bad">Bloqueada</span></div>
+        </div>
+      </summary>
+      <div class="row-expand">
+        <div class="detail-line"><span class="label">Motivo</span>La prótesis reservada no es compatible con este paciente.</div>
+        <div class="detail-line"><span class="label">Tarea pendiente</span>Verificar y/o solicitar la prótesis correcta.</div>
+        <div class="preview-box">
+         <div class="preview-tag">💡 vista previa (simulada por el motor de reglas)</div>
+         <p>Si se verifica o reemplaza la prótesis → pasaría a <span class="pill-inline ok">Ejecutable</span>. Todos los requisitos críticos confirmados, tiempo suficiente.</p>
+       </div>
+      </div>
+    </details>
+    <details class="row-details">
+      <summary>
+        <div class="row">
+          <div class="col-id pid">P-085</div>
+          <div class="col-name">Marta L. </div>
+          <div class="col-prio prio">Media</div>
+          <div class="col-dias prio">100</div>
+          <div class="col-estado"><span class="status-pill warn">Requiere revisión</span></div>
+        </div>
+      </summary>
+      <div class="row-expand">
+        <div class="detail-line"><span class="label">Motivo</span>Margen de tiempo (10 min) bajo el umbral seguro (15 min).</div>
+        
+        <div class="preview-box">
+         <div class="preview-tag">💡 vista previa (simulada por el motor de reglas)</div>
+         <p>Si se libera más tiempo de preparación → pasaría a <span class="pill-inline ok">Ejecutable</span>. Todos los requisitos críticos confirmados, tiempo suficiente.</p>
+       </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="security-panel">
+    <h2 class="section-title">Capas de seguridad del sistema</h2>
+    <div class="security-item">
+      <div class="icon">01</div>
+      <div class="txt"><b>Guardia de privacidad.</b> Rechaza cualquier identificador que no tenga formato sintético (P-XXX) antes de procesar cualquier dato.</div>
+    </div>
+    <div class="security-item">
+      <div class="icon">02</div>
+      <div class="txt"><b>Fallback seguro.</b> Si la verificación con Claude no está disponible, ningún caso se marca "Ejecutable" por defecto — se degrada a "Requiere revisión".</div>
+    </div>
+    <div class="security-item">
+      <div class="icon">03</div>
+      <div class="txt"><b>Log de auditoría.</b> Cada evaluación queda registrada con timestamp en <code>audit_log.jsonl</code>, de forma trazable y verificable.</div>
+    </div>
+    <div class="security-item">
+      <div class="icon">04</div>
+      <div class="txt"><b>Qué mide "margen de tiempo".</b> Es el tiempo mínimo de coordinación administrativa que necesita el equipo de gestión (SOME) para reasignar el cupo — bloquear pabellón, avisar al equipo quirúrgico, confirmar la reserva. No es tiempo de preparación clínica del paciente, que sigue su propio protocolo aparte.</div>
+    </div>
+  </div>
+
+  <footer>DATOS 100% SINTÉTICOS · NINGÚN PACIENTE REAL · AUDIT LOG: audit_log.jsonl</footer>
+</div>
+</body>
+</html>
