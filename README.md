@@ -1,5 +1,7 @@
 # Motor de Ejecutabilidad
 
+**Demo en vivo:** https://contactomtingcl.github.io/motor-ejecutabilidad/reporte.html
+
 Arquitectura de agente con IA para descompresión de listas de espera quirúrgicas.
 
 **Best AI Builder — Claude Impact Lab Longevidad 2026, evento de Anthropic.**
